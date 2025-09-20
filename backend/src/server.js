@@ -14,6 +14,10 @@ app.use(express.json());
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/messages", messageRoutes);
 
+
+
+
+
 //make ready for deployment
 
 if (process.env.NODE_ENV === 'production') {
@@ -24,7 +28,17 @@ if (process.env.NODE_ENV === 'production') {
     });
 }
 
-app.listen(PORT, () => {
-    console.log(`Server running on port: ${PORT}`)
-    connectDB();
-});
+
+
+connectDB()
+    .then(() => {
+        app.listen(PORT, () => {
+            console.log(`Server running on port: ${PORT}`)
+            
+        });
+
+    })
+    .catch((error) => {
+        console.error('Failed to connect to the database:', error);
+        process.exit(1);
+    });
