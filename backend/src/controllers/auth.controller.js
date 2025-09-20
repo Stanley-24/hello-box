@@ -4,15 +4,19 @@ import { generateToken } from "../lib/utils.js";
 
 export const signup = async (req, res) => {
   try {
-    let { fullname, email, password } = req.body;
 
-    if (!fullname || !email || !password) {
+    let { fullname, email, password } = req.body;
+    fullname = typeof fullname === "string" ? fullname.trim() : "";
+    email = typeof email === "string" ? email.trim().toLowerCase() : "";
+
+    if (!fullname || !email || password === undefined || password === null) {
       return res.status(400).json({ message: "All fields are required" });
     }
 
-    fullname = String(fullname).trim();
-    email = String(email).trim().toLowerCase();
-
+    if (typeof password !== "string") {
+      return res.status(400).json({ message: "Password must be a string" });
+    }
+    
     if (password.length < 6) {
       return res.status(400).json({ message: "Password must be at least 6 characters" });
     }
