@@ -5,13 +5,13 @@ import messageRoutes from './routes/message.routes.js';
 import { ENV } from './lib/env.js';
 import { connectDB } from './lib/db.js';
 import path from 'path';
-import { fileURLToPath } from 'url';
+
+
+
+const __dirname = path.resolve();
 
 const app = express();
 
-// ES module equivalent of __dirname
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const PORT = ENV.PORT || 3000;
 app.use(express.json());
@@ -24,14 +24,13 @@ app.use("/api/v1/messages", messageRoutes);
 
 //make ready for deployment
 
-if (ENV.NODE_ENV === 'production') {
+if (ENV.NODE_ENV === "production") {
   app.use(express.static(path.join(__dirname, "../frontend/dist")));
 
   app.get("*", (_, res) => {
-    res.sendFile(path.join(__dirname, "../frontend/dist/index.html"));
+    res.sendFile(path.join(__dirname, "../frontend", "dist", "index.html"));
   });
 }
-
 
 
 connectDB()
