@@ -4,7 +4,7 @@ import authRoutes from './routes/auth.routes.js';
 import messageRoutes from './routes/message.routes.js';
 import { ENV } from './lib/env.js';
 import { connectDB } from './lib/db.js';
-
+import path from 'path';
 
 const app = express();
 
