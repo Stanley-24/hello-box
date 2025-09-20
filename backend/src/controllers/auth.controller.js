@@ -1,76 +1,89 @@
 import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 import { generateToken } from "../lib/utils.js";
+import { sendWelcomeEmail } from "../emails/emailHandler.js";
+import { ENV } from "../lib/env.js";
 
+// Sign Up Endpoint
 export const signup = async (req, res) => {
+  const { fullname, email, password } = req.body;
+
   try {
-
-    let { fullname, email, password } = req.body;
-    fullname = typeof fullname === "string" ? fullname.trim() : "";
-    email = typeof email === "string" ? email.trim().toLowerCase() : "";
-
-    if (!fullname || !email || password === undefined || password === null) {
+    if (!fullname || !email || !password) {
       return res.status(400).json({ message: "All fields are required" });
     }
 
-    if (typeof password !== "string") {
-      return res.status(400).json({ message: "Password must be a string" });
-    }
-    
     if (password.length < 6) {
       return res.status(400).json({ message: "Password must be at least 6 characters" });
     }
 
+    // check if email is valid: regex
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       return res.status(400).json({ message: "Invalid email format" });
     }
 
-    // Check if user already exists
-    const existing = await User.findOne({ email });
-    if (existing) {
-      return res.status(409).json({ message: "User already exists" });
-    }
+    const user = await User.findOne({ email });
+    if (user) return res.status(400).json({ message: "Email already exists" });
 
-    // Hash password
+    
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Create new user
     const newUser = new User({
       fullname,
       email,
       password: hashedPassword,
     });
 
-    // Persist user first
-    await newUser.save();
+    if (newUser) {
+      // before CR:
+      // generateToken(newUser._id, res);
+      // await newUser.save();
 
-    // Issue token after successful save
-    generateToken(newUser._id, res);
+      // after CR:
+      // Persist user first, then issue auth cookie
+      const savedUser = await newUser.save();
+      generateToken(savedUser._id, res);
 
-    return res.status(201).json({
-      _id: newUser._id,
-      fullname: newUser.fullname,
-      email: newUser.email,
-      profilePic: newUser.profilePic,
-      message: "User created successfully",
-    });
-  } catch (error) {
-    // Handle duplicate key (race condition)
-    if (error?.code === 11000 && error?.keyPattern?.email) {
-      return res.status(409).json({ message: "User already exists" });
+      res.status(201).json({
+        _id: newUser._id,
+        fullName: newUser.fullname,
+        email: newUser.email,
+        profilePic: newUser.profilePic,
+      });
+
+      // Send welcome email after response is sent
+      try {
+        await sendWelcomeEmail(savedUser.email, savedUser.fullname, ENV.CLIENT_URL);
+      } catch (error) {
+        console.error("Failed to send welcome email:", error);
+      }
+
+
+    } else {
+      res.status(400).json({ message: "Invalid user data" });
     }
 
-    console.error("Error in signup controller:", error);
-    return res.status(500).json({ message: "Internal server error" });
+
+  } catch (error) {
+    console.log("Error in signup controller:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
 };
 
+
+
+// Sign In Endpoint 
 export const login = async (req, res) => {
   res.send({ message: "Login endpoint" });
 };
 
+
+
+
+
+// Logout Endpoint 
 export const logout = async (req, res) => {
   res.send({ message: "Logout endpoint" });
 };
