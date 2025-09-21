@@ -4,7 +4,7 @@ import { generateToken } from "../lib/utils.js";
 import { sendWelcomeEmail } from "../emails/emailHandler.js";
 import { ENV } from "../lib/env.js";
 import cloudinary from "../lib/cloudinary.js";
-
+import mongoose from "mongoose";
 // Sign Up Endpoint
 export const signup = async (req, res) => {
   const { fullname, email, password } = req.body;
@@ -119,21 +119,38 @@ export const logout = (_, res) => {
  };
 
 
+
+
 export const updateProfile = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     const { profilePic } = req.body;
 
     if (!profilePic) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({ message: "Profile picture is required" });
     }
 
     if (!req.user?._id) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(401).json({ message: "Not authorized" });
     }
 
     const userId = req.user._id;
 
-    // upload new image to Cloudinary
+    // 1. Verify user exists inside session
+    const existing = await User.findById(userId, null, { session }).select("profilePicId");
+    if (!existing) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // 2. Upload to Cloudinary (before DB update)
     const uploadResponse = await cloudinary.uploader.upload(profilePic, {
       resource_type: "image",
       folder: "profile_pics",
@@ -142,28 +159,40 @@ export const updateProfile = async (req, res) => {
       ],
     });
 
-    // fetch old profilePicId before updating
-    const existing = await User.findById(userId).select("profilePicId");
-
-    // update user record
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      { profilePic: uploadResponse.secure_url, profilePicId: uploadResponse.public_id },
-      { new: true, runValidators: true }
-    ).select("-password");
+    let updatedUser;
+    try {
+      // 3. Update user in MongoDB transaction
+      updatedUser = await User.findByIdAndUpdate(
+        userId,
+        { profilePic: uploadResponse.secure_url, profilePicId: uploadResponse.public_id },
+        { new: true, runValidators: true, session }
+      ).select("-password");
+    } catch (err) {
+      // Rollback Cloudinary if DB update fails
+      await cloudinary.uploader.destroy(uploadResponse.public_id, { invalidate: true }).catch(() => {});
+      throw err;
+    }
 
     if (!updatedUser) {
+      // Rollback Cloudinary if user not found
+      await cloudinary.uploader.destroy(uploadResponse.public_id, { invalidate: true }).catch(() => {});
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({ message: "User not found" });
     }
 
-    // cleanup old Cloudinary image (fire-and-forget)
-    if (existing?.profilePicId && existing.profilePicId !== uploadResponse.public_id) {
+    // 4. Commit transaction
+    await session.commitTransaction();
+    session.endSession();
+
+    // 5. Cleanup old Cloudinary image (after commit, fire-and-forget)
+    if (existing.profilePicId && existing.profilePicId !== uploadResponse.public_id) {
       cloudinary.uploader
         .destroy(existing.profilePicId, { invalidate: true })
-        .catch((e) => console.warn("Cloudinary destroy failed:", e));
+        .catch((e) => console.warn("Old Cloudinary image cleanup failed:", e));
     }
 
-    // success response
+    // 6. Respond with success
     res.status(200).json({
       _id: updatedUser._id,
       fullName: updatedUser.fullname,
@@ -171,6 +200,8 @@ export const updateProfile = async (req, res) => {
       profilePic: updatedUser.profilePic,
     });
   } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
     console.error("Error in updating profile:", error);
     res.status(500).json({ message: "Internal server error" });
   }
