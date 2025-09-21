@@ -5,7 +5,7 @@ import messageRoutes from './routes/message.routes.js';
 import { ENV } from './lib/env.js';
 import { connectDB } from './lib/db.js';
 import path from 'path';
-
+import cookieParser from 'cookie-parser';
 
 
 const __dirname = path.resolve();
@@ -14,6 +14,9 @@ const app = express();
 
 
 const PORT = ENV.PORT || 3000;
+
+
+app.use(cookieParser());
 app.use(express.json());
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/messages", messageRoutes);

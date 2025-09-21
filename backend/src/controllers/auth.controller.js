@@ -3,7 +3,8 @@ import bcrypt from "bcryptjs";
 import { generateToken } from "../lib/utils.js";
 import { sendWelcomeEmail } from "../emails/emailHandler.js";
 import { ENV } from "../lib/env.js";
-
+import cloudinary from "../lib/cloudinary.js";
+import mongoose from "mongoose";
 // Sign Up Endpoint
 export const signup = async (req, res) => {
   const { fullname, email, password } = req.body;
@@ -73,8 +74,6 @@ export const signup = async (req, res) => {
 };
 
 
-
-
 // Sign In Endpoint 
 export const login = async (req, res) => {
   const {email, password} = req.body;
@@ -90,7 +89,7 @@ export const login = async (req, res) => {
 
     generateToken(user._id, res);
 
-    res.status(201).json({
+    res.status(200).json({
         _id: user._id,
         fullName: user.fullname,
         email: user.email,
@@ -105,11 +104,105 @@ export const login = async (req, res) => {
 };
 
 
-
-
-
 // Logout Endpoint 
 export const logout = (_, res) => {
-  res.cookie("jwt", "", {maxAge: 0});
-  res.status(200).json({message: "Logged out successfully"});
+  const isProd = ENV.NODE_ENV === "production";
+  const crossSite = ENV.CLIENT_URL && !ENV.CLIENT_URL.includes("localhost");
+  const sameSite = isProd && crossSite ? "none" : "lax";
+  res.clearCookie("jwt", {
+    httpOnly: true,
+    sameSite,
+    secure: isProd,
+    path: "/",
+  });
+   res.status(200).json({message: "Logged out successfully"});
+ };
+
+
+
+
+export const updateProfile = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { profilePic } = req.body;
+
+    if (!profilePic) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: "Profile picture is required" });
+    }
+
+    if (!req.user?._id) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(401).json({ message: "Not authorized" });
+    }
+
+    const userId = req.user._id;
+
+    // 1. Verify user exists inside session
+    const existing = await User.findById(userId, null, { session }).select("profilePicId");
+    if (!existing) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // 2. Upload to Cloudinary (before DB update)
+    const uploadResponse = await cloudinary.uploader.upload(profilePic, {
+      resource_type: "image",
+      folder: "profile_pics",
+      transformation: [
+        { width: 512, height: 512, crop: "limit", quality: "auto", fetch_format: "auto" },
+      ],
+    });
+
+    let updatedUser;
+    try {
+      // 3. Update user in MongoDB transaction
+      updatedUser = await User.findByIdAndUpdate(
+        userId,
+        { profilePic: uploadResponse.secure_url, profilePicId: uploadResponse.public_id },
+        { new: true, runValidators: true, session }
+      ).select("-password");
+    } catch (err) {
+      // Rollback Cloudinary if DB update fails
+      await cloudinary.uploader.destroy(uploadResponse.public_id, { invalidate: true }).catch(() => {});
+      throw err;
+    }
+
+    if (!updatedUser) {
+      // Rollback Cloudinary if user not found
+      await cloudinary.uploader.destroy(uploadResponse.public_id, { invalidate: true }).catch(() => {});
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // 4. Commit transaction
+    await session.commitTransaction();
+    session.endSession();
+
+    // 5. Cleanup old Cloudinary image (after commit, fire-and-forget)
+    if (existing.profilePicId && existing.profilePicId !== uploadResponse.public_id) {
+      cloudinary.uploader
+        .destroy(existing.profilePicId, { invalidate: true })
+        .catch((e) => console.warn("Old Cloudinary image cleanup failed:", e));
+    }
+
+    // 6. Respond with success
+    res.status(200).json({
+      _id: updatedUser._id,
+      fullName: updatedUser.fullname,
+      email: updatedUser.email,
+      profilePic: updatedUser.profilePic,
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    console.error("Error in updating profile:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
 };

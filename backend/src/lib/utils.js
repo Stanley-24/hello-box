@@ -9,7 +9,7 @@ import { ENV } from "./env.js";
       throw new Error("JWT_SECRET is not defined in environment variables");
     }
     
-    const token = jwt.sign({ userId }, JWT_SECRET, {
+    const token = jwt.sign({ id : userId }, JWT_SECRET, {
       expiresIn: "7d",
     });
 
