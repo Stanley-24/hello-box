@@ -122,35 +122,56 @@ export const logout = (_, res) => {
 export const updateProfile = async (req, res) => {
   try {
     const { profilePic } = req.body;
-    if (!profilePic) 
+
+    if (!profilePic) {
       return res.status(400).json({ message: "Profile picture is required" });
+    }
 
-      if (!req.user?._id) {
-        return res.status(401).json({ message: "Not authorized" });
-      }
-      const userId = req.user._id;
+    if (!req.user?._id) {
+      return res.status(401).json({ message: "Not authorized" });
+    }
 
-      const uploadResponse = await cloudinary.uploader.upload(profilePic, {
-        resource_type: "image",
-        folder: "profile_pics",
-        transformation: [{ width: 512, height: 512, crop: "limit", quality: "auto", fetch_format: "auto" }],
-      });
+    const userId = req.user._id;
 
-      const updatedUser = await User.findByIdAndUpdate(
-        userId,
-        { profilePic: uploadResponse.secure_url, profilePicId: uploadResponse.public_id },
-        { new: true }
-      ).select("-password");
+    // upload new image to Cloudinary
+    const uploadResponse = await cloudinary.uploader.upload(profilePic, {
+      resource_type: "image",
+      folder: "profile_pics",
+      transformation: [
+        { width: 512, height: 512, crop: "limit", quality: "auto", fetch_format: "auto" },
+      ],
+    });
 
-      res.status(200).json({
-        _id: updatedUser._id,
-        fullName: updatedUser.fullname,
-        email: updatedUser.email,
-        profilePic: updatedUser.profilePic,
-      });
-      
+    // fetch old profilePicId before updating
+    const existing = await User.findById(userId).select("profilePicId");
+
+    // update user record
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { profilePic: uploadResponse.secure_url, profilePicId: uploadResponse.public_id },
+      { new: true, runValidators: true }
+    ).select("-password");
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // cleanup old Cloudinary image (fire-and-forget)
+    if (existing?.profilePicId && existing.profilePicId !== uploadResponse.public_id) {
+      cloudinary.uploader
+        .destroy(existing.profilePicId, { invalidate: true })
+        .catch((e) => console.warn("Cloudinary destroy failed:", e));
+    }
+
+    // success response
+    res.status(200).json({
+      _id: updatedUser._id,
+      fullName: updatedUser.fullname,
+      email: updatedUser.email,
+      profilePic: updatedUser.profilePic,
+    });
   } catch (error) {
-    console.log("Error in updating profile:", error);
-    res.status(500).json({message: "Internal server error"});
+    console.error("Error in updating profile:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
-}
+};
