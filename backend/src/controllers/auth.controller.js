@@ -106,10 +106,17 @@ export const login = async (req, res) => {
 
 // Logout Endpoint 
 export const logout = (_, res) => {
-  res.cookie("jwt", "", {maxAge: 0});
-  res.status(200).json({message: "Logged out successfully"});
-};
-
+  const isProd = ENV.NODE_ENV === "production";
+  const crossSite = ENV.CLIENT_URL && !ENV.CLIENT_URL.includes("localhost");
+  const sameSite = isProd && crossSite ? "none" : "lax";
+  res.clearCookie("jwt", {
+    httpOnly: true,
+    sameSite,
+    secure: isProd,
+    path: "/",
+  });
+   res.status(200).json({message: "Logged out successfully"});
+ };
 
 
 export const updateProfile = async (req, res) => {
@@ -118,14 +125,30 @@ export const updateProfile = async (req, res) => {
     if (!profilePic) 
       return res.status(400).json({ message: "Profile picture is required" });
 
+      if (!req.user?._id) {
+        return res.status(401).json({ message: "Not authorized" });
+      }
       const userId = req.user._id;
-      const uploadResponse = await cloudinary.uploader.upload(profilePic)
-      const updatedUser = await User.findByIdAndUpdate(userId, 
-        { profilePic: uploadResponse.secure_url }, 
-        { new: true }
-      );
 
-      res.status(200).json(updatedUser)
+      const uploadResponse = await cloudinary.uploader.upload(profilePic, {
+        resource_type: "image",
+        folder: "profile_pics",
+        transformation: [{ width: 512, height: 512, crop: "limit", quality: "auto", fetch_format: "auto" }],
+      });
+
+      const updatedUser = await User.findByIdAndUpdate(
+        userId,
+        { profilePic: uploadResponse.secure_url, profilePicId: uploadResponse.public_id },
+        { new: true }
+      ).select("-password");
+
+      res.status(200).json({
+        _id: updatedUser._id,
+        fullName: updatedUser.fullname,
+        email: updatedUser.email,
+        profilePic: updatedUser.profilePic,
+      });
+      
   } catch (error) {
     console.log("Error in updating profile:", error);
     res.status(500).json({message: "Internal server error"});
