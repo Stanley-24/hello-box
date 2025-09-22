@@ -6,7 +6,7 @@ import { arcjectProtection } from '../middleware/arcjet.middleware.js';
 
 
 const router = express.Router();
-router.use(arcjectProtection)
+router.use(arcjectProtection);
 
 
 
