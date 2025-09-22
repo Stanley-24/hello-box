@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 
+
 const messageSchema = new mongoose.Schema(
   {
     senderId: {
@@ -23,7 +24,13 @@ const messageSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
-
+// Require at least one of text or image
+messageSchema.pre('validate', function (next) {
+  if (!this.text && !this.image) {
+    return next(new Error("Message must contain text or image"));
+  }
+  next();
+});
+// Speed up common lookups and ordering
+messageSchema.index({ senderId: 1, receiverId: 1, createdAt: 1 });
 const Message = mongoose.model("Message", messageSchema);
-
-export default Message;
