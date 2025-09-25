@@ -5,7 +5,7 @@ import ProfileHeader from '../components/ProfileHeader.jsx';
 import ActiveTabSwitch from '../components/ActiveTabSwitch.jsx';
 import ChatsList from '../components/ChatsList.jsx';
 import ContactsList from '../components/ContactsList.jsx';
-import ChatContainer from '../components/chatContainer.jsx';
+import ChatContainer from '../components/ChatContainer.jsx';
 import NoChatPlaceholder from '../components/noChatPlaceholder.jsx';
 
 export default function ChatPage() {
