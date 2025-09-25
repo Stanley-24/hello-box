@@ -7,6 +7,7 @@ export const useAuthStore = create((set) => ({
   authUser: null,
   isCheckingAuth: true,
   isSigningUp: false,
+  isLoggningIn: false,
 
   checkAuth: async () => {
     try {
@@ -35,5 +36,33 @@ export const useAuthStore = create((set) => ({
     finally {
       set({ isSigningUp: false })
     }
+  },
+
+  login : async (data) => {
+    set({ isLoggningIn: true })
+    try {
+      const res = await axiosInstance.post("/auth/login", data);
+      set({ authUser: res.data});
+
+      //toast success message
+      toast.success("Logged In successful")
+
+    } catch (error) {
+      toast.error(error.response.data.message)
+    }
+    finally {
+      set({ isLoggningIn: false })
+    }
+  },
+
+  logout : async () => {
+      try {
+        await axiosInstance.post("/auth/logout");
+        set({ authUser: null });
+        toast.success("Logged out successfully");
+      } catch (error) {
+        toast.error("Error logging out. Please try again."),
+        console.log("Error logging out:", error)
+      }
   }
 }));
