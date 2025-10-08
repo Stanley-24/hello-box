@@ -6,7 +6,7 @@ import ActiveTabSwitch from '../components/ActiveTabSwitch.jsx';
 import ChatsList from '../components/ChatsList.jsx';
 import ContactsList from '../components/ContactsList.jsx';
 import ChatContainer from '../components/ChatContainer.jsx';
-import NoChatPlaceholder from '../components/noChatPlaceholder.jsx';
+import NoChatPlaceholder from '../components/NoChatPlaceholder.jsx';
 
 export default function ChatPage() {
   const {activeTab, selectedUser } = useChatStore();
