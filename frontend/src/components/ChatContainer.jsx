@@ -5,6 +5,13 @@ import { useAuthStore } from '../store/useAuthStore'
 import NoChatHistoryPlaceHolder from '../components/NoChatHistoryPlaceHolder'
 import MessagesInput from '../components/messagesInput'
 import MessagesLoadingSkeleton from '../components/MessagesLoadingSkeleton'
+/**
+ * Render the main chat interface for the currently selected user.
+ *
+ * Triggers loading of messages for the selected user when the selection changes and displays either the message list, a loading skeleton, or a no-history placeholder; includes the chat header and message input.
+ *
+ * @returns {JSX.Element} The assembled chat UI for the active conversation.
+ */
 function ChatContainer() {
   const {selectedUser, getMessagesByUserId, messages, isMessagesLoading} = useChatStore()
   const {authUser} = useAuthStore()
