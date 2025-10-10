@@ -3,7 +3,7 @@ import { useChatStore } from '../store/useChatStore'
 import ChatHeader from './ChatHeader'
 import { useAuthStore } from '../store/useAuthStore'
 import NoChatHistoryPlaceHolder from '../components/NoChatHistoryPlaceHolder'
-import MessagesInput from '../components/messagesInput'
+import MessagesInput from '../components/MessagesInput'
 import MessagesLoadingSkeleton from '../components/MessagesLoadingSkeleton'
 function ChatContainer() {
   const {selectedUser, getMessagesByUserId, messages, isMessagesLoading} = useChatStore()
@@ -41,8 +41,12 @@ function ChatContainer() {
                       {msg.text}
                     </p>
                   )}
-                  <p className='text-xm mt-1 opacity-75 flex items-center gap-1'>
-                    {new Date(msg.createdAt).toISOString().slice(11, 16)}
+                  <p className='text-sm mt-1 opacity-75 flex items-center gap-1'>
+                    {new Date(msg.createdAt).toLocaleTimeString([], 
+                      {hour: '2-digit', 
+                      minute: '2-digit', 
+                      hour12: true})
+                    }
                   </p>
 
                 </div>
@@ -51,9 +55,12 @@ function ChatContainer() {
             ))}
 
           </div>
-        ) : isMessagesLoading ? <MessagesLoadingSkeleton />  : (
-          <NoChatHistoryPlaceHolder name={selectedUser.fullname} />
-        )}
+        ) : isMessagesLoading
+          ? <MessagesLoadingSkeleton />
+          : selectedUser ? (
+              <NoChatHistoryPlaceHolder name={selectedUser.fullname} />
+            ) : null
+        }
       </div>
 
       <MessagesInput />
