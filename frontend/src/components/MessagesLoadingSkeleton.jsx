@@ -1,3 +1,7 @@
+/**
+ * Render a vertical stack of six animated chat-bubble loading skeletons with alternating alignment.
+ * @returns {JSX.Element} A container element containing six chat-skeleton items (`chat-start` and `chat-end`) that use `animate-pulse`.
+ */
 function MessagesLoadingSkeleton() {
   return (
     <div className="max-w-3xl mx-auto space-y-6">

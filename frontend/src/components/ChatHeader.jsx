@@ -2,6 +2,14 @@ import React, { useEffect } from 'react'
 import { useChatStore } from '../store/useChatStore'
 import { XIcon } from "lucide-react";
 
+/**
+ * Renders the chat header for the currently selected user, showing their avatar, fullname, and an online label.
+ *
+ * Pressing Escape or clicking the close icon clears the selected user from the chat store.
+ * The component reads `selectedUser` to populate the avatar (falls back to "/avatar.png") and fullname.
+ *
+ * @returns {JSX.Element} The header element for the active chat user. 
+ */
 function ChatHeader() {
   const {selectedUser, setSelectedUser} = useChatStore();
 
